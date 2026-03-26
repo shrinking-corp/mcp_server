@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "YouTube": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "<ABSOLUTE_PATH_TO_THIS_DIR>",
+        "run",
+        "server.py"
+      ]
+    }
+  }
+}
