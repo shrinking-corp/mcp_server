@@ -3,13 +3,15 @@ import logging
 from typing import Annotated, Literal
 from pydantic import Field
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 import io
 
-from shrinking_algorithms import process_puml
+from shrinking_algorithms.main import process_puml
+from shrinking_algorithms.algorithms.types import AlgorithmType
 
 mcp = FastMCP("shrinking-algorithm")
 
+# def process_puml(content: str, algorithm_type: AlgorithmType, settings: dict):
 @mcp.tool()
 def shrink_diagram(
         puml_string: Annotated[str, Field(
@@ -25,11 +27,12 @@ def shrink_diagram(
     """Shrinks a PlantUML diagram using the specified algorithm. Provide the raw PlantUML string content."""
     try:
         f = io.StringIO(puml_string)
+
         logging.info(f"Receiving file and sending to shrinking algorithms...")
         if algorithm == "kruskals":
-            result = process_puml(file=f, algorithm="kruskals", settings="{}")
+            result = process_puml(content=puml_string, algorithm_type=AlgorithmType.KRUSKAL, settings={})
         elif algorithm == "evol":
-            result = process_puml(file=f, algorithm="evol", settings="{\"iterations\": 5}")
+            result = process_puml(content=puml_string, algorithm_type=AlgorithmType.EVOLUTION, settings={})
         else:
             raise TypeError(f"Unknown algorithm: {algorithm}")
         logging.info("Shrinking completed successfully")
