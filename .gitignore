@@ -2,3 +2,4 @@
 venv/
 build/
 shrinking_mcp_server.egg-info/
+diagrams/
