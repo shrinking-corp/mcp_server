@@ -14,6 +14,7 @@ COPY pyproject.toml README.md ./
 RUN pip install --no-cache-dir .
 
 COPY server.py ./
+COPY configs ./configs
 
 CMD ["python", "server.py"]
 

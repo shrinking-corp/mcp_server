@@ -19,5 +19,5 @@ class KruskalConfig(BaseModel):
     kind: Literal["kruskals"] = "kruskals"
     weights: dict[str, float] | None = None
 
-    def __str(self) -> str:
+    def __str__(self) -> str:
         return "Kruskal's algorithm configuration"

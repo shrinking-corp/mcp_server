@@ -9,6 +9,7 @@ import io
 
 from shrinking_algorithms.main import process_puml
 from shrinking_algorithms.algorithms.types import AlgorithmType
+from shrinking_algorithms import DiagramShrinker
 
 from configs.configs import EvolConfig, KruskalConfig
 
@@ -58,6 +59,7 @@ def shrink_diagram(
                 description=(
                     "Optional preprocessing steps to apply before shrinking. "
                     "Steps are executed in the order provided."
+                    "Early steps are not re-run automatically, single preprocessing pass only. "
                 )
             )
         ],
@@ -72,26 +74,24 @@ def shrink_diagram(
     """Shrinks a PlantUML diagram using the specified algorithm. Provide the raw PlantUML string content."""
 
     try:
-        f = io.StringIO(puml_string)
-
         logging.info(f"Receiving file and sending to shrinking algorithms...")
         if algorithm == "kruskals":
             if algorithm_config is not None and not isinstance(algorithm_config, KruskalConfig):
-                raise TypeError(f"Invalid algorithm configuration for 'kruskals': {algorithm_config}")
-
-            result = process_puml(content=puml_string, algorithm_type=AlgorithmType.KRUSKAL, settings={})
+                raise ValueError(f"Invalid algorithm configuration for 'kruskals': {algorithm_config}")
         elif algorithm == "evol":
             if algorithm_config is not None and not isinstance(algorithm_config, EvolConfig):
-                raise TypeError(f"Invalid algorithm configuration: {algorithm_config}")
-
-            result = process_puml(content=puml_string, algorithm_type=AlgorithmType.EVOLUTION, settings={})
+                raise ValueError(f"Invalid algorithm configuration: {algorithm_config}")
         elif algorithm == "preprocess":
             if algorithm_config is not None:
-                raise TypeError(f"Invalid algorithm configuration: {algorithm_config}")
+                raise ValueError(f"Invalid algorithm configuration: {algorithm_config}")
 
-            result = process_puml(content=puml_string, algorithm_type=AlgorithmType.PREPROCESS_ONLY, settings={})
-        else:
-            raise TypeError(f"Unknown algorithm: {algorithm}")
+        config = {
+            **(algorithm_config.model_dump(exclude={"kind"}) if algorithm_config is not None else {}), 
+            "preprocess_steps": preprocess_steps
+
+        }
+        ds = DiagramShrinker(algorithm, config)
+        result = ds.shrink(puml_string).get_result_puml()
 
         logging.info("Shrinking completed successfully")
         if result is None:
