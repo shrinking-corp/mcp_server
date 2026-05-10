@@ -1,13 +1,10 @@
 import logging
 
 from typing import Annotated, Literal
-from networkx import algorithms
 from pydantic import Field
 
 from fastmcp import FastMCP
-import io
 
-from shrinking_algorithms.main import process_puml
 from shrinking_algorithms.algorithms.types import AlgorithmType
 from shrinking_algorithms import DiagramShrinker
 
@@ -66,10 +63,16 @@ def shrink_diagram(
         algorithm_config: Annotated[EvolConfig | KruskalConfig | None, Field(
             description="Optional configuration for the specified algorithm:\n"
                         "- 'EvolConfig': pass when using 'evol' algorithm\n"
-                        "- 'KruskalConfig': pass when using 'kruskals' algrithm\n"
+                        "- 'KruskalConfig': pass when using 'kruskals' algorithm\n"
+                        "   - KruskalConfig supports optional weights:\n"
+                        "   - dependency: default 1\n"
+                        "   - extension: default 3\n"
+                        "   - implementation: default 3\n"
+                        "   - aggregation: default 2\n"
+                        "   - composition: default 2\n"
+                        "   - association: default 1\n"
                         "- 'None': No algorithm configuration needed"
         )] = None
-
 ) -> str:
     """Shrinks a PlantUML diagram using the specified algorithm. Provide the raw PlantUML string content."""
 
@@ -90,8 +93,8 @@ def shrink_diagram(
             "preprocess_steps": preprocess_steps
 
         }
-        ds = DiagramShrinker(algorithm, config)
-        result = ds.shrink(puml_string).get_result_puml()
+        ds = DiagramShrinker(puml_string, algorithm, config)
+        result = ds.shrink().get_result_puml()
 
         logging.info("Shrinking completed successfully")
         if result is None:
