@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "diagram-shrinker": {
+      "command": "docker",
+      "args": ["run", "--rm", "-i", "shrinking-mcp-server"]
+    }
+  }
+}

@@ -3,4 +3,4 @@ venv/
 build/
 shrinking_mcp_server.egg-info/
 diagrams/
-config/__pycache__/
+configs/__pycache__/

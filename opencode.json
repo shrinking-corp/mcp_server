@@ -3,13 +3,8 @@
   "mcp": {
     "diagram-shrinker": {
       "type": "local",
-      "command": [
-        "docker",
-        "run",
-        "--rm",
-        "-i",
-        "shrinking-mcp-server"
-      ]
+      "command": ["docker", "run", "--rm", "-i", "shrinking-mcp-server"]
     }
   }
 }
+
