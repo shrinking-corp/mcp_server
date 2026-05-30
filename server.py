@@ -3,35 +3,99 @@ import logging
 from typing import Annotated, Literal
 from pydantic import Field
 
-from mcp.server.fastmcp import FastMCP
-import io
+from fastmcp import FastMCP
 
-from shrinking_algorithms import process_puml
+from shrinking_algorithms.algorithms.types import AlgorithmType
+from shrinking_algorithms import DiagramShrinker
+
+from configs.configs import EvolConfig, KruskalConfig
 
 mcp = FastMCP("shrinking-algorithm")
 
-@mcp.tool()
+# def process_puml(content: str, algorithm_type: AlgorithmType, settings: dict):
+@mcp.tool(
+    annotations={
+        "readOnlyHint": True
+    }
+)
 def shrink_diagram(
         puml_string: Annotated[str, Field(
             description="The PlantUML diagram content as a string. "
                         "Paste the full .puml file contents here."
         )],
-        algorithm: Annotated[Literal["kruskals", "evol"], Field(
+        algorithm: Annotated[Literal["kruskals", "evol", "preprocess"], Field(
             description="Algorithm to use for shrinking:\n"
                         "- 'kruskals': Graph-based reduction, fast and deterministic, best for large diagrams\n"
-                        "- 'evol': Evolutionary optimization, slower but may yield better results, runs 5 iterations"
-        )]
+                        "- 'evol': Evolutionary optimization, slower but may yield better results, runs 5 iterations\n"
+                        "- 'preprocess': Do not run any shrinking algorithm, only apply preprocessing steps"
+        )],
+        preprocess_steps: Annotated[
+            list[
+                Literal[
+                    "remove_empty_classes",
+                    "remove_isolated_classes",
+                    "remove_leaf_classes",
+                    "remove_low_degree_classes",
+                    "remove_random_classes",
+                    "remove_getters_and_setters",
+                    "remove_public_methods",
+                    "remove_private_methods",
+                    "remove_protected_methods",
+                    "remove_package_methods",
+                    "remove_random_methods",
+                    "remove_public_attributes",
+                    "remove_private_attributes",
+                    "remove_protected_attributes",
+                    "remove_package_attributes",
+                    "remove_random_attributes",
+                    "remove_random_edges",
+                ]
+            ],
+            Field(
+                default_factory=list,
+                description=(
+                    "Optional preprocessing steps to apply before shrinking. "
+                    "Steps are executed in the order provided."
+                    "Early steps are not re-run automatically, single preprocessing pass only. "
+                )
+            )
+        ],
+        algorithm_config: Annotated[EvolConfig | KruskalConfig | None, Field(
+            description="Optional configuration for the specified algorithm:\n"
+                        "- 'EvolConfig': pass when using 'evol' algorithm\n"
+                        "- 'KruskalConfig': pass when using 'kruskals' algorithm\n"
+                        "   - KruskalConfig supports optional weights:\n"
+                        "   - dependency: default 1\n"
+                        "   - extension: default 3\n"
+                        "   - implementation: default 3\n"
+                        "   - aggregation: default 2\n"
+                        "   - composition: default 2\n"
+                        "   - association: default 1\n"
+                        "- 'None': No algorithm configuration needed"
+        )] = None
 ) -> str:
     """Shrinks a PlantUML diagram using the specified algorithm. Provide the raw PlantUML string content."""
+
     try:
-        f = io.StringIO(puml_string)
         logging.info(f"Receiving file and sending to shrinking algorithms...")
         if algorithm == "kruskals":
-            result = process_puml(file=f, algorithm="kruskals", settings="{}")
+            if algorithm_config is not None and not isinstance(algorithm_config, KruskalConfig):
+                raise ValueError(f"Invalid algorithm configuration for 'kruskals': {algorithm_config}")
         elif algorithm == "evol":
-            result = process_puml(file=f, algorithm="evol", settings="{\"iterations\": 5}")
-        else:
-            raise TypeError(f"Unknown algorithm: {algorithm}")
+            if algorithm_config is not None and not isinstance(algorithm_config, EvolConfig):
+                raise ValueError(f"Invalid algorithm configuration: {algorithm_config}")
+        elif algorithm == "preprocess":
+            if algorithm_config is not None:
+                raise ValueError(f"Invalid algorithm configuration: {algorithm_config}")
+
+        config = {
+            **(algorithm_config.model_dump(exclude={"kind"}) if algorithm_config is not None else {}), 
+            "preprocess_steps": preprocess_steps
+
+        }
+        ds = DiagramShrinker(puml_string, algorithm, config)
+        result = ds.shrink().get_result_puml()
+
         logging.info("Shrinking completed successfully")
         if result is None:
             logging.info("Shrinking completed but returned no output.")

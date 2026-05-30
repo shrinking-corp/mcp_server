@@ -1,154 +1,192 @@
 # Shrinking Algorithm MCP Server
 
-> **Disclaimer:** This setup assumes you are using **Claude Desktop** as your MCP client.
+This repository contains an MCP server for shrinking PlantUML (`.puml`) diagrams. It exposes one MCP tool, `shrink_diagram`, which accepts PlantUML text and returns a transformed PlantUML diagram.
 
-This MCP server exposes a single tool — `shrink_diagram_by_kruskal` — that accepts the text content of a PlantUML (`.puml`) file and returns a shrunken version of the diagram using Kruskal's algorithm. The intended workflow is:
+The tool supports three modes:
 
-1. Paste your `.puml` file content into Claude Desktop
-2. Claude calls `shrink_diagram_by_kruskal` with the content
-3. The MCP server processes it and returns the shrunken diagram
-4. Claude presents the result back to you
+- `kruskals` - graph-based reduction, fast and deterministic
+- `evol` - evolutionary optimization, slower but may produce better results
+- `preprocess` - applies preprocessing steps without running a shrinking algorithm
+
+The server is intended to be run as a Docker-backed local MCP server over stdio. This README includes setup instructions for OpenCode and Claude Desktop.
 
 ---
 
 ## Prerequisites
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
-- [Claude Desktop](https://claude.ai/download) installed
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running, or another working Docker installation
+- One of the following MCP clients:
+  - [OpenCode](https://opencode.ai/)
+  - [Claude Desktop](https://claude.ai/download)
 
 ---
 
-## Step 1 — Build the Docker Image
+## Build the Docker Image
 
-> ⚠️ The build command **must be run from the repository root**, not from inside `mcp_server/`.
+Run the build command from this repository root, where `Dockerfile` is located.
 
 **macOS / Linux:**
+
 ```bash
-docker build -f mcp_server/Dockerfile -t shrinking-algorithm-mcp .
+docker build -f Dockerfile -t shrinking-mcp-server .
 ```
 
 **Windows (Command Prompt):**
+
 ```cmd
-docker build -f mcp_server\Dockerfile -t shrinking-algorithm-mcp .
+docker build -f Dockerfile -t shrinking-mcp-server .
 ```
 
 **Windows (PowerShell):**
+
 ```powershell
-docker build -f mcp_server\Dockerfile -t shrinking-algorithm-mcp .
+docker build -f Dockerfile -t shrinking-mcp-server .
 ```
 
 To verify the image was built successfully:
+
 ```bash
-docker images | grep shrinking-algorithm-mcp
+docker images | grep shrinking-mcp-server
+```
+
+On Windows, if `grep` is not available, check the image list manually:
+
+```cmd
+docker images
 ```
 
 ---
 
-## Step 2 — Create the Docker MCP Catalog
+## Configure OpenCode
 
-### 2a — Create the catalog YAML file
-
-Create the following file at `~/.docker/mcp/catalogs/shrinking-algorithm.yaml`:
-
-**macOS / Linux:**
-```bash
-mkdir -p ~/.docker/mcp/catalogs
-```
-
-Then create the file `~/.docker/mcp/catalogs/shrinking-algorithm.yaml` with this content:
-
-```yaml
-tools:
-  shrinking-algorithm:
-    image: shrinking-algorithm-mcp:latest
-    description: Shrinks PlantUML diagrams using Kruskal's algorithm.
-```
-
-**Windows** — create the file at `%USERPROFILE%\.docker\mcp\catalogs\shrinking-algorithm.yaml` with the same content.
-
-### 2b — Register the catalog in the Docker MCP registry
-
-Open (or create) `~/.docker/mcp/registry.yaml` and add the following entry under the top-level `servers` key:
-
-```yaml
-servers:
-  shrinking-algorithm:
-    ref: ""
-```
-
-If the file already has other entries, just append the `shrinking-algorithm` block under `servers`.
-
-**Windows** — the file is at `%USERPROFILE%\.docker\mcp\registry.yaml`.
-
----
-
-## Step 3 — Configure Claude Desktop
-
-Locate your Claude Desktop config file:
-
-| Platform | Path |
-|----------|------|
-| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
-| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
-| Linux | `~/.config/Claude/claude_desktop_config.json` |
-
-The contents of `/mcp_server/claude_desktop_config.json` in this repository show the server entry you need. Open your Claude Desktop config and merge in the `shrinking-algorithm` block under `mcpServers`:
+OpenCode reads project configuration from `opencode.json` in the repository root. This repository already includes the required configuration:
 
 ```json
 {
-  "mcpServers": {
-    "shrinking-algorithm": {
-      "command": "docker",
-      "args": [
-        "run",
-        "--rm",
-        "-i",
-        "shrinking-algorithm-mcp"
-      ]
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "diagram-shrinker": {
+      "type": "local",
+      "command": ["docker", "run", "--rm", "-i", "shrinking-mcp-server"]
     }
   }
 }
 ```
 
-If you already have other servers in `mcpServers`, just add the `shrinking-algorithm` entry alongside them.
+The MCP server name is `diagram-shrinker`. OpenCode starts it by running the Docker image built above.
+
+After building the image, start OpenCode from this repository so it can discover the project-level `opencode.json`.
 
 ---
 
-## Step 4 — Restart Claude Desktop
+## Configure Claude Desktop
 
-Fully quit and reopen Claude Desktop:
+Locate your Claude Desktop config file:
+
+| Platform | Path |
+| -------- | ---- |
+| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
+| Linux | `~/.config/Claude/claude_desktop_config.json` |
+
+This repository includes `claude_desktop_config.json` with the server entry you need:
+
+```json
+{
+  "mcpServers": {
+    "diagram-shrinker": {
+      "command": "docker",
+      "args": ["run", "--rm", "-i", "shrinking-mcp-server"]
+    }
+  }
+}
+```
+
+If your Claude Desktop config already has other servers under `mcpServers`, add the `diagram-shrinker` entry alongside them instead of replacing the whole file.
+
+After updating the config, fully quit and reopen Claude Desktop:
 
 - **macOS:** `Cmd+Q`, then reopen
-- **Windows / Linux:** Close from the system tray, then reopen
+- **Windows / Linux:** close Claude Desktop from the system tray, then reopen
 
-After restarting, click the 🔧 tools icon in the chat input area — you should see `shrink_diagram_by_kruskal` listed.
+After restarting, the `shrink_diagram` tool should be available.
 
 ---
 
 ## Usage
 
-Paste the contents of a `.puml` file into the chat and prompt Claude:
+Paste the contents of a `.puml` file into your MCP client and ask it to use the tool. For example:
 
-> *"Use the shrink_diagram_by_kruskal tool on this diagram."*
+> Use the `shrink_diagram` tool on this PlantUML diagram with the `kruskals` algorithm.
 
-Claude will extract the text, call the tool, and return the shrunken diagram directly in the conversation.
+The tool expects:
+
+- `puml_string` - the full PlantUML diagram text
+- `algorithm` - one of `kruskals`, `evol`, or `preprocess`
+- `preprocess_steps` - optional list of preprocessing steps
+- `algorithm_config` - optional configuration for `kruskals` or `evol`
+
+Supported preprocessing steps are:
+
+- `remove_empty_classes`
+- `remove_isolated_classes`
+- `remove_leaf_classes`
+- `remove_low_degree_classes`
+- `remove_random_classes`
+- `remove_getters_and_setters`
+- `remove_public_methods`
+- `remove_private_methods`
+- `remove_protected_methods`
+- `remove_package_methods`
+- `remove_random_methods`
+- `remove_public_attributes`
+- `remove_private_attributes`
+- `remove_protected_attributes`
+- `remove_package_attributes`
+- `remove_random_attributes`
+- `remove_random_edges`
 
 ---
 
 ## Troubleshooting
 
-**Tool not appearing in Claude Desktop:**
-- Make sure Docker Desktop is running
-- Verify the image exists: `docker images | grep shrinking-algorithm-mcp`
-- Check for JSON syntax errors in `claude_desktop_config.json`
+**Tool not appearing:**
 
-**Checking live logs:**
-```bash
-# macOS / Linux
-tail -f ~/Library/Logs/Claude/mcp-server-shrinking-algorithm.log
-```
+- Make sure Docker is running
+- Verify the image exists: `docker images | grep shrinking-mcp-server`
+- Make sure your MCP client config uses `shrinking-mcp-server`
+- Make sure the Docker image was built after the latest code changes
+- Check for JSON syntax errors in `opencode.json` or `claude_desktop_config.json`
 
 **Testing the container directly:**
+
 ```bash
-docker run --rm -i shrinking-algorithm-mcp
+docker run --rm -i shrinking-mcp-server
 ```
+
+This starts the MCP server over stdio. It will wait for MCP client messages, so no normal command-line output is expected.
+
+**OpenCode logs:**
+
+OpenCode writes logs to:
+
+| Platform | Path |
+| -------- | ---- |
+| macOS / Linux | `~/.local/share/opencode/log/` |
+| Windows | `%USERPROFILE%\.local\share\opencode\log` |
+
+Log files are named with timestamps, and OpenCode keeps the most recent 10 log files. To get more detail while debugging MCP startup issues, run OpenCode with debug logging:
+
+```bash
+opencode --log-level DEBUG
+```
+
+To print logs directly in the terminal while OpenCode is running:
+
+```bash
+opencode --print-logs
+```
+
+**Claude Desktop logs:**
+
+Claude Desktop writes MCP server logs under the Claude logs directory. The exact log file name may vary by platform and Claude Desktop version, but it usually includes the MCP server name, `diagram-shrinker`.
